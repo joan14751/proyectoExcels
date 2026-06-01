@@ -24,7 +24,6 @@ export default function UploadExcel() {
     setSuccess(false);
 
     try {
-      // ← Ahora pasamos el tipo
       const result = await excelService.processExcel(selectedFile, tipo);
       setPreview(result);
     } catch (err) {
@@ -43,7 +42,6 @@ export default function UploadExcel() {
     try {
       const autoNombre = file.name.replace(/\.[^/.]+$/, "");
       
-      // ← Ahora pasamos también el laboratorio
       await excelService.uploadAndSave(file, autoNombre, tipo, laboratorio);
       
       setSuccess(true);
@@ -79,7 +77,7 @@ export default function UploadExcel() {
               <div className="card-header bg-primary text-white py-5 text-center rounded-top-4">
                 <Upload size={55} className="mb-3" />
                 <h3 className="mb-1 fw-bold">Cargar Archivo Excel</h3>
-                <p className="mb-0">IMS • Stock • Rotación</p>
+                <p className="mb-0">IMS • Stock • Rotación • IMS PDF</p>
               </div>
 
               <div className="card-body p-5">
@@ -96,6 +94,7 @@ export default function UploadExcel() {
                       <option value="IMS">IMS</option>
                       <option value="Stock">Stock</option>
                       <option value="Rotacion">Rotación</option>
+                      <option value="IMS PDF">IMS PDF</option>   {/* ← Agregado */}
                     </select>
                   </div>
 

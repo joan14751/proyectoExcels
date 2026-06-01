@@ -6,7 +6,7 @@ import { Shield, ArrowLeft, CheckCircle, XCircle } from 'lucide-react';
 
 export default function ManagePermissions() {
   const navigate = useNavigate();
-  
+ 
   const [users, setUsers] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [permissions, setPermissions] = useState({});
@@ -15,6 +15,7 @@ export default function ManagePermissions() {
   // Tipos de documentos que SIEMPRE deben aparecer
   const fixedDocumentTypes = [
     { id: 'ims-fixed', tipo: 'IMS', nombre: 'Reporte IMS' },
+    { id: 'imspdf-fixed', tipo: 'IMS PDF', nombre: 'Reporte IMS PDF' },   // ← Nuevo
     { id: 'stock-fixed', tipo: 'Stock', nombre: 'Reporte Stock' },
     { id: 'rotacion-fixed', tipo: 'Rotacion', nombre: 'Reporte Rotación' }
   ];
@@ -30,7 +31,6 @@ export default function ManagePermissions() {
       .from('profiles')
       .select('id, nombre, email, rol')
       .order('nombre');
-
     if (error) console.error("Error fetching users:", error);
     setUsers(data || []);
   };
@@ -48,16 +48,13 @@ export default function ManagePermissions() {
       return;
     }
 
-    console.log("📊 Documentos reales encontrados:", data);
-
-    // Combinamos documentos reales con los tipos fijos
     const realDocs = data || [];
     const allDocs = [...fixedDocumentTypes];
 
     realDocs.forEach(doc => {
       const index = allDocs.findIndex(d => d.tipo.toLowerCase() === doc.tipo.toLowerCase());
       if (index !== -1) {
-        allDocs[index] = { ...doc }; // Reemplazamos con el documento real
+        allDocs[index] = { ...doc };
       }
     });
 
@@ -76,14 +73,14 @@ export default function ManagePermissions() {
       if (!permMap[p.user_id]) permMap[p.user_id] = new Set();
       permMap[p.user_id].add(p.documento_id);
     });
+
     setPermissions(permMap);
     setLoading(false);
   };
 
   const togglePermission = async (userId, docId) => {
-    // Si es documento fijo (aún no existe en BD)
     if (typeof docId === 'string' && docId.includes('-fixed')) {
-      alert("Primero debes subir un documento de este tipo (IMS/Stock/Rotación) para poder asignar permisos.");
+      alert("Primero debes subir un documento de este tipo (IMS/Stock/Rotación/IMS PDF) para poder asignar permisos.");
       return;
     }
 
@@ -101,7 +98,7 @@ export default function ManagePermissions() {
         .insert({ user_id: userId, documento_id: docId });
     }
 
-    fetchPermissions(); // Actualizar
+    fetchPermissions();
   };
 
   const hasPermission = (userId, docId) => {
@@ -112,7 +109,7 @@ export default function ManagePermissions() {
     <>
       <Navbar />
       <div className="container py-5">
-        <button 
+        <button
           onClick={() => navigate('/admin')}
           className="btn btn-outline-secondary mb-4 d-flex align-items-center gap-2"
         >
@@ -166,13 +163,13 @@ export default function ManagePermissions() {
                               key={doc.id}
                               onClick={() => togglePermission(user.id, doc.id)}
                               className={`btn btn-sm d-flex align-items-center gap-1 ${
-                                hasPermission(user.id, doc.id) 
-                                  ? 'btn-success' 
+                                hasPermission(user.id, doc.id)
+                                  ? 'btn-success'
                                   : 'btn-outline-secondary'
                               }`}
                             >
-                              {hasPermission(user.id, doc.id) ? 
-                                <CheckCircle size={16} /> : 
+                              {hasPermission(user.id, doc.id) ?
+                                <CheckCircle size={16} /> :
                                 <XCircle size={16} />
                               }
                               {doc.tipo}
@@ -189,8 +186,8 @@ export default function ManagePermissions() {
         )}
 
         <div className="mt-4 alert alert-info small">
-          <strong>Nota importante:</strong> Los usuarios normales solo verán las filas cuya columna 
-          <strong> LABORATORIO </strong> o <strong> LINEA </strong> coincida con su nombre. 
+          <strong>Nota importante:</strong> Los usuarios normales solo verán las filas cuya columna
+          <strong> LABORATORIO </strong> o <strong> LINEA </strong> coincida con su nombre.
           El Admin siempre ve todo.
         </div>
       </div>

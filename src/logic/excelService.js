@@ -1,40 +1,29 @@
 import * as XLSX from 'xlsx';
 import { supabase } from '../api/supabase';
 
-// Función de conversión de fechas MÁS ROBUSTA
+// Función de conversión de fechas
 const excelDateToJSDate = (value) => {
   if (!value) return value;
-
-  // Si ya es una fecha en formato string (ej: 09/01/2024)
   if (typeof value === 'string') {
-    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(value)) return value; // ya está bien
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(value)) return value;
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
   }
-
-  // Si es número serial de Excel
   const num = Number(value);
   if (!isNaN(num) && num > 0 && num < 100000) {
     try {
       const utc_days = Math.floor(num - 25569);
       const date = new Date(utc_days * 86400 * 1000);
-
       const fraction = num - Math.floor(num);
       if (fraction > 0) {
         const totalSeconds = Math.round(fraction * 86400);
         date.setHours(Math.floor(totalSeconds / 3600), Math.floor((totalSeconds % 3600) / 60));
       }
-
-      return date.toLocaleDateString('es-PE', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      });
+      return date.toLocaleDateString('es-PE', { year: 'numeric', month: '2-digit', day: '2-digit' });
     } catch (e) {
       return value;
     }
   }
-
-  return value; // devolver original si no es fecha
+  return value;
 };
 
 export const excelService = {
@@ -47,34 +36,39 @@ export const excelService = {
           const workbook = XLSX.read(data, { type: 'array' });
           const worksheet = workbook.Sheets[workbook.SheetNames[0]];
 
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+          let jsonData = XLSX.utils.sheet_to_json(worksheet, { 
             header: 1,
             defval: "" 
           });
 
-          const cleanData = jsonData.filter(row => 
-            row && row.some(cell => String(cell).trim() !== "")
-          );
+          jsonData = jsonData.filter(row => row && row.some(cell => String(cell).trim() !== ""));
 
-          const originalHeaders = cleanData[0] || [];
-          const rows = cleanData.slice(1);
+          let originalHeaders = jsonData[0] || [];
+          let rowsStartIndex = 1;
 
-          let processedData = [];
+          if (tipo === 'IMS PDF') {
+            for (let i = 0; i < Math.min(15, jsonData.length); i++) {
+              const row = jsonData[i];
+              if (row.some(cell => String(cell).toUpperCase().includes('LABORATORIO'))) {
+                originalHeaders = row.filter(cell => cell !== null && String(cell).trim() !== "");
+                rowsStartIndex = i + 1;
+                break;
+              }
+            }
+          }
 
-          processedData = rows.map(row => {
+          const rows = jsonData.slice(rowsStartIndex);
+
+          let processedData = rows.map(row => {
             const obj = {};
             originalHeaders.forEach((header, index) => {
               let value = row[index] ?? "";
-
-              // Convertir fechas automáticamente
               const headerUpper = String(header).toUpperCase().trim();
               if (headerUpper.includes('FECHA') || 
                   headerUpper.includes('ADMISIÓN') || 
-                  headerUpper.includes('VENCIMIENTO') ||
-                  headerUpper.includes('ADMISSION')) {
+                  headerUpper.includes('VENCIMIENTO')) {
                 value = excelDateToJSDate(value);
               }
-
               const key = String(header).trim() || `columna_${index}`;
               obj[key] = value;
             });
@@ -93,7 +87,6 @@ export const excelService = {
           reject(err);
         }
       };
-
       reader.onerror = () => reject(new Error("Error al leer el archivo"));
       reader.readAsArrayBuffer(file);
     });
