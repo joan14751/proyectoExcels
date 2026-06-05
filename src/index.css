@@ -200,6 +200,10 @@ code {
 .hover-shadow:hover {
   box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
 }
+.hover-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1) !important;
+}
 
 /* Responsive */
 @media (max-width: 768px) {
@@ -253,4 +257,40 @@ code {
 
 .table-hover tbody tr:hover {
   background-color: #f1f5f9;
+}
+
+/* Animación de entrada suave para tarjetas */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive perfecto */
+@media (max-width: 768px) {
+  .admin-action-card {
+    margin-bottom: 1.5rem;
+  }
+  
+  .row.g-4 > div {
+    width: 100% !important;
+  }
+}@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.hover-card:hover {
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.15) !important;
+  transform: translateY(-8px);
 }
