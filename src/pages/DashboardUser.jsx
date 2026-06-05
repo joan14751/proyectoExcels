@@ -70,8 +70,8 @@ export default function DashboardUser() {
     }
   };
 
-  // ==================== FILTRO MEJORADO ====================
-  const filterByLaboratorio = (rows, userLab) => {
+  // ==================== FILTRO POR LABORATORIO MEJORADO ====================
+  const filterByLaboratorio = (rows, userLab, headers) => {
     if (!userLab || isAdmin) return rows;
     const labUpper = userLab.toUpperCase().trim();
 
@@ -79,14 +79,10 @@ export default function DashboardUser() {
       return row.some((cell, index) => {
         if (!cell) return false;
         const cellStr = String(cell).toUpperCase().trim();
-        
-        // Buscar en columnas comunes de laboratorio
-        const header = previewHeaders[index] ? String(previewHeaders[index]).toUpperCase() : '';
-        
-        if (header.includes('LINEA') || 
-            header.includes('LABORATORIO') || 
-            header.includes('NOM') || 
-            header.includes('CLIENTE')) {
+        const header = headers[index] ? String(headers[index]).toUpperCase() : '';
+
+        // Filtro más fuerte para IMS PDF
+        if (header.includes('LABORATORIO') || header.includes('LINEA')) {
           return cellStr.includes(labUpper) || labUpper.includes(cellStr);
         }
         return false;
@@ -110,9 +106,18 @@ export default function DashboardUser() {
       const headers = jsonData[0] || [];
       let rows = jsonData.slice(1);
 
-      // Aplicar filtro por laboratorio
+      // === FILTRO POR LABORATORIO (Se aplica primero) ===
       if (!isAdmin && profile?.nombre) {
-        rows = filterByLaboratorio(rows, profile.nombre);
+        rows = filterByLaboratorio(rows, profile.nombre, headers);
+      }
+
+      // === ORDEN POR REP.VENTAS (Solo IMS PDF) ===
+      if (doc.tipo === 'IMS PDF' && rows.length > 0) {
+        rows.sort((a, b) => {
+          const repA = String(a[2] || a['REP.VENTAS'] || "").trim().toUpperCase();
+          const repB = String(b[2] || b['REP.VENTAS'] || "").trim().toUpperCase();
+          return repA.localeCompare(repB);
+        });
       }
 
       setPreviewHeaders(headers);
@@ -142,7 +147,7 @@ export default function DashboardUser() {
       let rows = jsonData.slice(1);
 
       if (!isAdmin && profile?.nombre) {
-        rows = filterByLaboratorio(rows, profile.nombre);
+        rows = filterByLaboratorio(rows, profile.nombre, jsonData[0]);
       }
 
       const newWorkbook = XLSX.utils.book_new();
@@ -166,14 +171,23 @@ export default function DashboardUser() {
     );
   }, [previewData, globalSearch]);
 
-  const changePassword = async () => {
-    const newPass = prompt("Nueva contraseña (mínimo 6 caracteres):");
-    if (!newPass || newPass.length < 6) return alert("Contraseña muy corta");
-    
-    const { error } = await supabase.auth.updateUser({ password: newPass });
-    if (error) alert("Error: " + error.message);
-    else alert("✅ Contraseña cambiada correctamente");
-  };
+  const totals = useMemo(() => {
+    if (!previewData) return { cantidad: 0, total: 0 };
+
+    const dataToSum = globalSearch.trim() ? filteredRows : previewData;
+
+    let sumaCantidad = 0;
+    let sumaTotal = 0;
+
+    dataToSum.forEach(row => {
+      const cantidad = parseFloat(row[3]) || 0;
+      const total = parseFloat(row[4]) || 0;
+      sumaCantidad += cantidad;
+      sumaTotal += total;
+    });
+
+    return { cantidad: sumaCantidad, total: sumaTotal.toFixed(2) };
+  }, [previewData, filteredRows, globalSearch]);
 
   return (
     <>
@@ -193,15 +207,12 @@ export default function DashboardUser() {
               {isAdmin ? "🟢 Administrador - Vista Completa" : `Laboratorio: ${profile?.nombre}`}
             </p>
           </div>
-          <button onClick={changePassword} className="btn btn-outline-primary">
-            <Key size={18} className="me-2" /> Cambiar Contraseña
-          </button>
         </div>
 
         {loading ? (
           <p>Cargando documentos...</p>
         ) : documentos.length === 0 ? (
-          <div className="alert alert-info">No tienes documentos asignados por el administrador.</div>
+          <div className="alert alert-info">No tienes documentos asignados.</div>
         ) : (
           <div className="row g-4">
             {documentos.map(doc => (
@@ -226,7 +237,7 @@ export default function DashboardUser() {
         )}
       </div>
 
-      {/* Modal Previsualización */}
+      {/* MODAL */}
       {showPreview && previewData && (
         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.85)' }}>
           <div className="modal-dialog modal-xl">
@@ -234,7 +245,7 @@ export default function DashboardUser() {
               <div className="modal-header">
                 <h5>Previsualización: {previewName}</h5>
                 <small className="text-muted ms-3">
-                  {isAdmin ? "✅ VISTA COMPLETA (ADMIN)" : `Filtrado por: ${profile?.nombre}`}
+                  {isAdmin ? "✅ VISTA COMPLETA" : `Filtrado por: ${profile?.nombre}`}
                 </small>
                 <button className="btn-close" onClick={() => setShowPreview(false)}></button>
               </div>
@@ -252,7 +263,7 @@ export default function DashboardUser() {
                 </div>
               </div>
 
-              <div className="modal-body p-0" style={{ maxHeight: '78vh', overflow: 'auto' }}>
+              <div className="modal-body p-0" style={{ maxHeight: '65vh', overflow: 'auto' }}>
                 <table className="table table-sm table-bordered mb-0">
                   <thead className="table-dark sticky-top">
                     <tr>
@@ -275,10 +286,18 @@ export default function DashboardUser() {
                 </table>
               </div>
 
+              <div className="bg-light border-top p-3">
+                <div className="row text-center fw-bold">
+                  <div className="col-6">
+                    Cantidad Total: <span className="text-primary fs-5">{totals.cantidad.toLocaleString()}</span>
+                  </div>
+                  <div className="col-6">
+                    Total S/: <span className="text-success fs-5">{totals.total}</span>
+                  </div>
+                </div>
+              </div>
+
               <div className="modal-footer">
-                <small className="text-muted">
-                  Mostrando {filteredRows.length} filas • Total original: {previewData.length}
-                </small>
                 <button className="btn btn-secondary" onClick={() => setShowPreview(false)}>
                   Cerrar
                 </button>
