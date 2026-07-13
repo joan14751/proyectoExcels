@@ -169,7 +169,6 @@ export default function DashboardUser() {
     }
   };
 
-  // ==================== ICONOS POR TIPO DE DOCUMENTO ====================
   const getDocumentIcon = (tipo) => {
     const upperTipo = tipo?.toUpperCase();
     if (upperTipo === 'IMS PDF') return <FileText size={52} className="text-info" />;
@@ -178,7 +177,6 @@ export default function DashboardUser() {
     return <FileText size={52} className="text-secondary" />;
   };
 
-  // Variantes de animación con Framer Motion
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
@@ -200,6 +198,7 @@ export default function DashboardUser() {
               <ArrowLeft size={20} /> Volver al Panel
             </button>
             <h1 className="fw-bold text-primary mb-1">Mis Documentos</h1>
+            <h1 className="fw-bold text-primary mb-2">LA INFORMACION SE ACTUALIZARA TODOS LOS DIAS A LAS 10 A.M</h1>
             <p className="text-muted fs-5">Laboratorio: <strong className="text-dark">{profile?.nombre}</strong></p>
           </div>
           <div className="badge bg-success fs-6 py-2 px-3">🟢 Conectado</div>
@@ -227,7 +226,6 @@ export default function DashboardUser() {
               >
                 <div className="card h-100 shadow border-0 overflow-hidden hover-card" style={{ transition: 'all 0.3s ease' }}>
                   
-                  {/* ICONO GRANDE EN LA PARTE SUPERIOR */}
                   <div className="card-header bg-white border-0 pt-4 pb-0 text-center">
                     <div className="mb-3">
                       {getDocumentIcon(doc.tipo)}
@@ -238,7 +236,14 @@ export default function DashboardUser() {
 
                   <div className="card-body pt-2">
                     <small className="text-muted">
-                      Actualizado: {new Date(doc.created_at).toLocaleDateString('es-PE')}
+                      Cargado: {new Date(doc.created_at).toLocaleString('es-PE', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true   // Formato 12 horas
+                      })}
                     </small>
                   </div>
 
@@ -308,4 +313,4 @@ export default function DashboardUser() {
       )}
     </>
   );
-}
+} 
