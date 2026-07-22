@@ -10,7 +10,7 @@ import { motion } from 'framer-motion';
 export default function DashboardUser() {
   const { profile } = useAuth();
   const navigate = useNavigate();
- 
+
   const [documentos, setDocumentos] = useState([]);
   const [previewData, setPreviewData] = useState(null);
   const [previewHeaders, setPreviewHeaders] = useState([]);
@@ -82,21 +82,112 @@ export default function DashboardUser() {
     });
   };
 
+  // Conversor infalible para números de serie de fechas de Excel
+  const excelDateToJSDate = (value) => {
+    if (value === null || value === undefined || value === "") return "-";
+
+    const strValue = String(value).trim();
+
+    // Si ya viene formateado con barras (ej. "31/08/2028")
+    if (strValue.includes('/')) return strValue;
+
+    const num = Number(strValue);
+
+    // Si es un número válido dentro del rango de serie de fechas de Excel
+    if (!isNaN(num) && num > 1000) {
+      try {
+        const date = new Date(Math.round((num - 25569) * 86400 * 1000));
+        
+        const day = String(date.getUTCDate()).padStart(2, '0');
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const year = date.getUTCFullYear();
+
+        if (isNaN(year) || year < 1900) return strValue;
+
+        return `${day}/${month}/${year}`;
+      } catch (e) {
+        return strValue;
+      }
+    }
+    return strValue;
+  };
+
   const handlePreview = async (doc) => {
     try {
       const filePath = getFilePath(doc.url);
       if (!filePath) return alert("Archivo no encontrado");
       const { data, error } = await supabase.storage.from('excels').download(filePath);
       if (error) throw error;
+
       const arrayBuffer = await data.arrayBuffer();
+      
       const workbook = XLSX.read(arrayBuffer, { type: 'array' });
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
-      const headers = jsonData[0] || [];
+
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+        header: 1, 
+        defval: "",
+        raw: true
+      });
+
+      const rawHeaders = jsonData[0] || [];
       let rows = jsonData.slice(1);
+
+      // 1. Limpieza de encabezados para mostrar en tabla
+      const displayHeaders = rawHeaders.map(h => 
+        String(h || '').replace(/\r?\n|\r/g, ' ').replace(/\s+/g, ' ').trim()
+      );
+
+      // 2. Normalización de encabezados para detección (elimina tildes, símbolos, espacios invisibles)
+      const normalizedHeaders = rawHeaders.map(h => 
+        String(h || '')
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, '')
+      );
+
+      // 3. Detectar índices de columnas que representan fechas
+      const dateColumnIndices = normalizedHeaders.reduce((acc, normHeader, index) => {
+        if (
+          normHeader.includes('VENCIMIENTO') || 
+          normHeader.includes('FECHA') || 
+          normHeader.includes('ADMISION') || 
+          normHeader.includes('VENC') ||
+          normHeader.includes('CADUCIDAD')
+        ) {
+          acc.push(index);
+        }
+        return acc;
+      }, []);
+
       if (!isAdmin && profile?.nombre) {
-        rows = filterByLaboratorio(rows, profile.nombre, headers);
+        rows = filterByLaboratorio(rows, profile.nombre, displayHeaders);
       }
+
+      // 4. Conversión forzada de celdas de fechas
+      rows = rows.map(row => {
+        return row.map((cell, index) => {
+          // Si la columna fue identificada como fecha
+          if (dateColumnIndices.includes(index)) {
+            return excelDateToJSDate(cell);
+          }
+          
+          // Detección de respaldo (Fallback): si la celda es un número de serie de fecha típico (> 10000)
+          // y no es un lote puro ni un código de artículo
+          const numCell = Number(cell);
+          if (!isNaN(numCell) && numCell > 35000 && numCell < 3000000 && String(cell).trim().length <= 7) {
+            // Verifica si el encabezado no es LOTE ni CODIGO
+            const normH = normalizedHeaders[index] || '';
+            if (!normH.includes('LOTE') && !normH.includes('COD') && !normH.includes('ARTICULO')) {
+              return excelDateToJSDate(cell);
+            }
+          }
+
+          return cell;
+        });
+      });
+
       if (doc.tipo === 'IMS PDF' && rows.length > 0) {
         rows.sort((a, b) => {
           const repA = String(a[2] || "").trim().toUpperCase();
@@ -104,7 +195,8 @@ export default function DashboardUser() {
           return repA.localeCompare(repB);
         });
       }
-      setPreviewHeaders(headers);
+
+      setPreviewHeaders(displayHeaders);
       setPreviewData(rows);
       setPreviewName(doc.nombre);
       setGlobalSearch('');
@@ -191,7 +283,7 @@ export default function DashboardUser() {
     <>
       <Navbar />
       <div className="container py-5" style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%)', minHeight: '100vh' }}>
-       
+        
         <div className="d-flex justify-content-between align-items-center mb-5">
           <div>
             <button onClick={() => navigate(isAdmin ? '/admin' : '/user')} className="btn btn-outline-secondary d-flex align-items-center gap-2 mb-3">
@@ -242,7 +334,7 @@ export default function DashboardUser() {
                         day: '2-digit',
                         hour: '2-digit',
                         minute: '2-digit',
-                        hour12: true   // Formato 12 horas
+                        hour12: true
                       })}
                     </small>
                   </div>
@@ -262,7 +354,7 @@ export default function DashboardUser() {
         )}
       </div>
 
-      {/* MODAL (sin cambios) */}
+      {/* MODAL PREVISUALIZACIÓN */}
       {showPreview && previewData && (
         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.85)' }}>
           <div className="modal-dialog modal-xl">
@@ -313,4 +405,4 @@ export default function DashboardUser() {
       )}
     </>
   );
-} 
+}

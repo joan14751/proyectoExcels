@@ -1,28 +1,39 @@
 import * as XLSX from 'xlsx';
 import { supabase } from '../api/supabase';
 
-// Función de conversión de fechas
+// Función de conversión de fechas ULTRA ROBUSTA
 const excelDateToJSDate = (value) => {
   if (!value) return value;
+
+  // Si ya es string en formato fecha
   if (typeof value === 'string') {
     if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(value)) return value;
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
   }
+
+  // Si es número serial de Excel
   const num = Number(value);
-  if (!isNaN(num) && num > 0 && num < 100000) {
+  if (!isNaN(num) && num > 25569 && num < 50000) {
     try {
       const utc_days = Math.floor(num - 25569);
       const date = new Date(utc_days * 86400 * 1000);
+
       const fraction = num - Math.floor(num);
       if (fraction > 0) {
         const totalSeconds = Math.round(fraction * 86400);
         date.setHours(Math.floor(totalSeconds / 3600), Math.floor((totalSeconds % 3600) / 60));
       }
-      return date.toLocaleDateString('es-PE', { year: 'numeric', month: '2-digit', day: '2-digit' });
+
+      return date.toLocaleDateString('es-PE', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
     } catch (e) {
       return value;
     }
   }
+
   return value;
 };
 
@@ -36,9 +47,9 @@ export const excelService = {
           const workbook = XLSX.read(data, { type: 'array' });
           const worksheet = workbook.Sheets[workbook.SheetNames[0]];
 
-          let jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+          let jsonData = XLSX.utils.sheet_to_json(worksheet, {
             header: 1,
-            defval: "" 
+            defval: ""
           });
 
           jsonData = jsonData.filter(row => row && row.some(cell => String(cell).trim() !== ""));
@@ -63,13 +74,20 @@ export const excelService = {
             const obj = {};
             originalHeaders.forEach((header, index) => {
               let value = row[index] ?? "";
-              const headerUpper = String(header).toUpperCase().trim();
-              if (headerUpper.includes('FECHA') || 
-                  headerUpper.includes('ADMISIÓN') || 
-                  headerUpper.includes('VENCIMIENTO')) {
+              const headerStr = String(header).trim();
+              const headerUpper = headerStr.toUpperCase();
+
+              // Detección EXACTA y amplia
+              if (headerStr === 'Fecha de Vencimiento' || 
+                  headerUpper.includes('VENCIMIENTO') || 
+                  headerUpper.includes('FECHA') ||
+                  headerUpper.includes('ADMISIÓN') ||
+                  headerUpper.includes('VENC') ||
+                  headerUpper.includes('EXPIRACION')) {
                 value = excelDateToJSDate(value);
               }
-              const key = String(header).trim() || `columna_${index}`;
+
+              const key = headerStr || `columna_${index}`;
               obj[key] = value;
             });
             return obj;
@@ -81,12 +99,12 @@ export const excelService = {
             tipo: tipo,
             rowCount: processedData.length
           });
-
         } catch (err) {
           console.error("Error procesando Excel:", err);
           reject(err);
         }
       };
+
       reader.onerror = () => reject(new Error("Error al leer el archivo"));
       reader.readAsArrayBuffer(file);
     });

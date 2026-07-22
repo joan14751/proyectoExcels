@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/common/Navbar';
 import { supabase } from '../api/supabase';
-import { Shield, ArrowLeft, CheckCircle, XCircle } from 'lucide-react';
+import { Shield, ArrowLeft, CheckCircle, XCircle, UserCheck } from 'lucide-react';
 
 export default function ManagePermissions() {
   const navigate = useNavigate();
@@ -12,10 +12,9 @@ export default function ManagePermissions() {
   const [permissions, setPermissions] = useState({});
   const [loading, setLoading] = useState(true);
 
-  // Tipos de documentos que SIEMPRE deben aparecer
   const fixedDocumentTypes = [
     { id: 'ims-fixed', tipo: 'IMS', nombre: 'Reporte IMS' },
-    { id: 'imspdf-fixed', tipo: 'IMS PDF', nombre: 'Reporte IMS PDF' },   // ← Nuevo
+    { id: 'imspdf-fixed', tipo: 'IMS PDF', nombre: 'Reporte IMS PDF' },
     { id: 'stock-fixed', tipo: 'Stock', nombre: 'Reporte Stock' },
     { id: 'rotacion-fixed', tipo: 'Rotacion', nombre: 'Reporte Rotación' }
   ];
@@ -80,7 +79,7 @@ export default function ManagePermissions() {
 
   const togglePermission = async (userId, docId) => {
     if (typeof docId === 'string' && docId.includes('-fixed')) {
-      alert("Primero debes subir un documento de este tipo (IMS/Stock/Rotación/IMS PDF) para poder asignar permisos.");
+      alert("Primero debes subir un documento de este tipo para poder asignar permisos.");
       return;
     }
 
@@ -105,6 +104,36 @@ export default function ManagePermissions() {
     return permissions[userId]?.has(docId) || false;
   };
 
+  // ==================== ASIGNAR UN TIPO DE DOCUMENTO A TODOS ====================
+  const assignDocumentTypeToAll = async (doc) => {
+    if (!window.confirm(`¿Asignar el documento "${doc.tipo}" a TODOS los usuarios?`)) return;
+
+    try {
+      const { data: allUsers } = await supabase.from('profiles').select('id');
+
+      if (!allUsers || allUsers.length === 0) {
+        return alert("No hay usuarios registrados");
+      }
+
+      const permissionsToInsert = allUsers.map(user => ({
+        user_id: user.id,
+        documento_id: doc.id
+      }));
+
+      const { error } = await supabase
+        .from('permisos_documento')
+        .upsert(permissionsToInsert, { onConflict: ['user_id', 'documento_id'] });
+
+      if (error) throw error;
+
+      alert(`✅ Documento "${doc.tipo}" asignado a todos los usuarios correctamente.`);
+      fetchPermissions();
+    } catch (err) {
+      console.error(err);
+      alert("Error al asignar: " + err.message);
+    }
+  };
+
   return (
     <>
       <Navbar />
@@ -125,6 +154,25 @@ export default function ManagePermissions() {
           <div className="badge bg-info fs-6">
             {documents.length} Tipos • {users.length} Usuarios
           </div>
+        </div>
+
+        {/* BOTONES DE ASIGNACIÓN MASIVA - EN LA PARTE SUPERIOR */}
+        <div className="mb-4">
+          <h6 className="mb-3 text-muted">Asignación Masiva por Tipo de Documento</h6>
+          <div className="d-flex flex-wrap gap-2">
+            {documents.map(doc => (
+              <button
+                key={doc.id}
+                onClick={() => assignDocumentTypeToAll(doc)}
+                className="btn btn-outline-success btn-sm px-4 py-2"
+              >
+                Asignar {doc.tipo} a todos
+              </button>
+            ))}
+          </div>
+          <small className="text-muted d-block mt-2">
+            Cada botón asigna un solo tipo de documento a todos los usuarios
+          </small>
         </div>
 
         {loading ? (
